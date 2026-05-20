@@ -77,20 +77,23 @@ hardware.
 - Use the Wi-Fi panel to connect to a network and sync internet time.
 - Use the capture panel or BOOT button to save BMP screenshots to SD.
 
+ <img width="640" height="480" alt="ASCII_Aquarium_Settings" src="https://github.com/user-attachments/assets/3a448574-69ee-40fb-a141-50961f769b09" style="float: right;"/>
+
+
 ## Build From Source
 
 The main Arduino sketch lives here:
 
 ```text
-ASCII_Aquarium/ASCII_Aquarium_CYD/ASCII_Aquarium_CYD.ino
+ASCII_Aquarium_CYD/ASCII_Aquarium_CYD.ino
 ```
 
 The sketch expects the CYD display and touch configuration used by the included
 TFT_eSPI setup files:
 
 ```text
-ASCII_Aquarium/User_Setup.h
-ASCII_Aquarium/User_Setup_Select_CYD.h
+User_Setup.h
+User_Setup_Select_CYD.h
 ```
 
 To build manually:
