@@ -1,22 +1,31 @@
+## ASCII Aquarium
 <table>
   <tr>
     <td width="45%" valign="top">
-      <h1>ASCII Aquarium</h1>
+<p>
+  A tiny animated ASCII fish tank for the ESP32-2432S028R Cheap Yellow Display.
+</p>
       <p>
-        A tiny animated ASCII fish tank for the ESP32-2432S028R
-        Cheap Yellow Display.
-      </p>
-      <p>
-        Flash it from the browser, tap to feed the fish, tune the tank,
-        sync the clock over Wi-Fi, and let the punctuation swim.
+      Flash it from the browser, tap to feed the fish, tune the tank, sync the clock over Wi-Fi, and let the punctuation swim.
       </p>
       <p>
         <a href="https://power-pill.github.io/ASCII-Aquarium/">
           Flash ASCII Aquarium CYD
         </a>
       </p>
+      <p>
+        ASCII Aquarium turns the common 320x240 CYD touchscreen into a living little
+desktop aquarium with swimming ASCII fish, rising bubbles, swaying seaweed,
+tap-to-feed flakes, occasional octopus and seahorse visitors, touch controls,
+Wi-Fi time sync, persistent settings, and SD-card screenshot capture.
+</p>
+<p>
+        It is not a video loop. The aquarium is rendered live on the ESP32, with fish
+that wander, school, turn around, change brightness, avoid each other, and chase
+food when you tap the glass.
+      </p>
     </td>
-    <td width="42%" valign="top">
+    <td width="55%" valign="top">
       <img
         src="https://github.com/user-attachments/assets/34200303-25c9-45c5-a6eb-1e53a6c267d7"
         alt="ASCII Aquarium Title Screen"
@@ -25,14 +34,22 @@
   </tr>
 </table>
 
-ASCII Aquarium turns the common 320x240 CYD touchscreen into a living little
-desktop aquarium with swimming ASCII fish, rising bubbles, swaying seaweed,
-tap-to-feed flakes, occasional octopus and seahorse visitors, touch controls,
-Wi-Fi time sync, persistent settings, and SD-card screenshot capture.
-
-It is not a video loop. The aquarium is rendered live on the ESP32, with fish
-that wander, school, turn around, change brightness, avoid each other, and chase
-food when you tap the glass.
+<table>
+  <tr>
+    <td width="50%" valign="top">
+    <img
+        src="https://github.com/user-attachments/assets/b350f4ad-5aa9-4560-84a4-927dffa96d35"
+        alt="Settings"
+        width="100%">
+    </td>
+    <td width="50%" valign="top">
+      <img
+        src="https://github.com/user-attachments/assets/12696457-80b7-4ba0-9382-38a2e72ea84d"
+        alt="Feeding the Fish"
+        width="100%">
+    </td>
+  </tr>
+</table>
 
 ## ASCII Aquarium Web Flasher
 
@@ -64,6 +81,9 @@ This firmware is built for the [ESP32-2432S028R "Cheap Yellow Display" board](ht
 Other CYD-style boards may look similar but use different display, touch, or SD
 hardware.
 
+## 3D Printed Cases
+ - I hily 
+
 ## Features
 
 - Animated ASCII fish with multiple glyph species, varied colors, depth shading,
@@ -89,10 +109,11 @@ hardware.
   respawn, and randomize.
 - Double-buffered sprite rendering for smoother animation.
 
+## Basic Controls
+
 <table>
   <tr>
     <td width="50%" valign="top">
-      <h1>Basic Controls</h1>
  <p>• Tap the top-left corner to reveal the hidden HUD.</p>
  <p>• Tap the tank to drop food.</p>
  <p>• Use the settings panel to tune fish, bubbles, visitors, seaweed, clock, and
