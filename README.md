@@ -111,7 +111,7 @@ Other CYD-style boards may look similar but use different display, touch, or SD 
 
 ## New Features in 2.20 ><((((>`
 
-[Detailed Release Notes for 2.18 can be found here](https://github.com/POWER-PILL/ASCII-Aquarium/blob/main/ASCII_Aquarium_Release_Notes_v2.20.md).
+[Detailed Release Notes for 2.20 can be found here](https://github.com/POWER-PILL/ASCII-Aquarium/blob/main/ASCII_Aquarium_Release_Notes_v2.20.md).
 
 - New Overhauled background system with new smoother dithered gradients
 - New background colours available
