@@ -65,7 +65,7 @@ The easiest way to install ASCII Aquarium
 You will need:
 
 - A supported [CYD board](https://www.aliexpress.com/item/1005004971720824.html) connected by a USB data cable.
-- Chrome or Edge on a desktop computer.
+- Chrome, Edge or latest Firefox Browser on a desktop or laptop computer.
 - The Arduino IDE Serial Monitor closed, if it was open.
 
 Open the flasher page, click **Flash ASCII Aquarium**, choose the CYD serial
@@ -76,23 +76,23 @@ port, and let the installer finish.
 This firmware is built for the [ESP32-2432S028R "Cheap Yellow Display" board](https://www.aliexpress.com/item/1005004971720824.html):
 
 [https://www.aliexpress.com/item/1005004971720824.html](https://www.aliexpress.com/item/1005004971720824.html)
+[https://www.amazon.com/dp/B0FJQ6RK39](https://www.amazon.com/dp/B0FJQ6RK39)
 
 - ESP32
 - ILI9341 320x240 display
 - XPT2046 resistive touchscreen
 - Optional SD card support for BMP screenshots and frame capture
 
-Other CYD-style boards may look similar but use different display, touch, or SD
-hardware.
+Other CYD-style boards may look similar but use different display, touch, or SD hardware.
 
 ## 3D Printed 2.8" CYD Cases ><((((>`
-- [Basic snapfit case by PowerPill.Prints](https://makerworld.com/en/models/2835243)
+- [Basic Snap-fit case by PowerPill.Prints](https://makerworld.com/en/models/2835243)
 - [CYD Desk Buddy by annaglyph](https://makerworld.com/en/models/2787810) 
 
 ## Features >(°)>
 
-- Animated ASCII fish with multiple glyph species, varied colors, depth shading,
-  smooth wraparound, schooling, wandering, and separation behavior.
+- Animated ASCII fish with multiple glyph species, varied colours, depth shading,
+  smooth wraparound, schooling, wandering, and separation behaviuor.
 - Tap-to-feed flakes that nearby fish chase down.
 - Configurable fish population from 6 to 36.
 - Configurable bubble count from 0 to 50.
@@ -103,13 +103,28 @@ hardware.
 - Touch settings menu with Tank, Seaweed, Clock, and Background tabs.
 - Optional on-screen clock with manual time or internet time.
 - 12-hour and 24-hour clock formats.
-- Timezone selection, small top or bottom clock, large ASCII clock style, and clock color picker.
+- Timezone selection, small top or bottom clock, large ASCII clock style, and clock colour picker.
 - Wi-Fi panel with network scan, saved credentials, on-screen keyboard, reconnect handling, and NTP time sync.
 - Persistent settings using ESP32 Preferences.
-- SD-card BMP screenshots and frame sequence capture.
-- Hidden HUD controls for setup, capture, Wi-Fi, settings, quick creature tests, respawn, and randomize.
+- SD-card BMP screenshots and frame sequence capture. (NOTE - in build 2.18 The CYD will need to be reset after taking screenshots or sequences)
+- Hidden HUD controls for setup, capture, Wi-Fi, settings, quick creature tests, respawn, and randomize. 
+
+## New Features in 2.20 ><((((>`
+
+Detailed Release Notes for 2.18 can be found here.
+
+- New Overhauled background system with new smoother dithered gradients
+- New background colours available
+- New smooth background option
+- New LCD Backlight and RGB Ambient LED colour and brightness control
+- New Ambient LED Control can link to background colour, or use a different colour
+- New CD Backlight and RGB Ambient LED Light Schedule and Tap to wake functionality. Thank you to @mjpcomp for the suggestion.
+- New Timed events setting with Auto feeding. This is great if you're using the beam splitter since you can't tap the screen. Thank you to @mjpcomp for the suggestion.
+- 20 new Selectable ASCII clock fonts
+- Various Bug fixes
 
 ## Basic Controls ><((((*>
+
 
 <table>
   <tr>
@@ -119,8 +134,8 @@ hardware.
  <p>• Use the settings panel to tune fish, bubbles, visitors, seaweed, clock, and
   backgrounds.</p>
  <p>• Use the Wi-Fi panel to connect to a network and sync internet time.</p>
- <p>• Use the capture panel to save BMP sequences to the SD Card. BEWARE - this is EXTREMELY slow since the fishtank simulation is slowed down to allow every frame to be captured.</p>
- <p>• Press and hold the BOOT button on the back of the CYD to save BMP screenshots to the SD card.</p>
+ <p>• Use the capture panel to save BMP sequences to the SD Card. BEWARE - this is EXTREMELY slow since the fishtank simulation is slowed down to allow every frame to be captured. </p>
+ <p>• Press and hold the BOOT button on the back of the CYD to save BMP screenshots to the SD card. You will need to reboot the CYD after Screenshot or sequence capture</p>
     </td>
     <td width="50%" valign="top">
       <img
@@ -165,7 +180,7 @@ The cube does not create the animation by itself; the CYD is still doing all the
 The main Arduino sketch lives here:
 
 ```text
-ASCII_Aquarium_CYD/ASCII_Aquarium_CYD.ino
+ASCII_Aquarium_CYD/ASCII_Aquarium_CYD_2.20.ino
 ```
 
 The sketch expects the CYD display and touch configuration used by the included
@@ -189,9 +204,6 @@ publish the generated merged firmware binary.
 
 ## Project Notes >°>
 
-ASCII Aquarium CYD is part clock, part screensaver, part tiny art object, and
-part excuse to make fish-shaped punctuation swim around like it has somewhere
-important to be.
+ASCII Aquarium CYD is part clock, part screensaver, part tiny art object, and part excuse to make fish-shaped punctuation swim around like it has somewhere important to be.
 
-No water changes. No tank cycling. No surprise snails. Just plug it in and let
-the current take care of itself.
+No water changes. No tank cycling. No surprise snails. Just plug it in and let the current take care of itself.
