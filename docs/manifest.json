@@ -1,13 +1,13 @@
 {
   "name": "ASCII Aquarium",
-  "version": "1.67",
+  "version": "2.20",
   "new_install_prompt_erase": true,
   "builds": [
     {
       "chipFamily": "ESP32",
       "parts": [
         {
-          "path": "firmware/ascii-aquaruim-cyd-v1.67.bin",
+          "path": "firmware/ascii-aquarium-cyd-v2.20.bin",
           "offset": 0
         }
       ]
