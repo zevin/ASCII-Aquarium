@@ -1292,6 +1292,14 @@ unsigned long respawnButtonFlashUntilMs = 0;
 unsigned long seahorseButtonFlashUntilMs = 0;
 unsigned long octopusButtonFlashUntilMs = 0;
 
+// ------------------------------ Tomo Mode ------------------------------------
+bool tomoModeEnabled = false;
+int tomoHealth = 100;        // 0-100, 0 = critical
+int tomoHungerFullness = 100; // 0-100, 100 = full, 0 = starving (UI shows inverted as "Hunger")
+int tomoActivity = 50;       // 0-100 (placeholder for future)
+int tomoMess = 0;            // 0-100 trash/algae on tank floor
+unsigned long lastTomoUpdateMs = 0;
+
 unsigned long lastMs = 0;
 // Animation clock. During sequence capture it advances one video frame per saved BMP,
 // so slow SD writes do not create skipped motion in the exported image sequence.
@@ -2923,6 +2931,11 @@ void savePersistentState() {
   prefs.putString("wifi_ssid", wifiSsid);
   prefs.putString("wifi_pass", wifiPass);
   prefs.putBytes("flowers", pixelFlowers, sizeof(pixelFlowers));
+  prefs.putBool("tomo_on", tomoModeEnabled);
+  prefs.putInt("tomo_health", tomoHealth);
+  prefs.putInt("tomo_hunger", tomoHungerFullness);
+  prefs.putInt("tomo_activity", tomoActivity);
+  prefs.putInt("tomo_mess", tomoMess);
   prefs.end();
   settingsDirty = false;
   lastSettingsSaveMs = millis();
@@ -2998,6 +3011,11 @@ void loadPersistentState() {
     if (flowerBytes == sizeof(pixelFlowers)) {
       prefs.getBytes("flowers", pixelFlowers, sizeof(pixelFlowers));
     }
+    tomoModeEnabled = prefs.getBool("tomo_on", false);
+    tomoHealth = prefs.getInt("tomo_health", 100);
+    tomoHungerFullness = prefs.getInt("tomo_hunger", 100);
+    tomoActivity = prefs.getInt("tomo_activity", 50);
+    tomoMess = prefs.getInt("tomo_mess", 0);
   }
   prefs.end();
 
@@ -5089,6 +5107,8 @@ void drawSettingsPanel(TFT_eSprite& s) {
     drawSettingRow(s, SETTINGS_ROW_START_Y + SETTINGS_ROW_GAP, "Bubble Amount", buf);
 
     drawActionRow(s, SETTINGS_ROW_START_Y + SETTINGS_ROW_GAP * 2, "Timed Events", "Events");
+    
+    drawSettingToggleRow(s, SETTINGS_ROW_START_Y + SETTINGS_ROW_GAP * 3, "Tomo Mode", "Off", "On", !tomoModeEnabled, tomoModeEnabled);
   } else if (activeSettingsTab == SETTINGS_TAB_SEAWEED) {
     snprintf(buf, sizeof(buf), "%.2f", seaweedSwaySpeed);
     drawSettingRow(s, SETTINGS_ROW_START_Y, "Sway", buf);
@@ -5152,6 +5172,7 @@ void drawSceneLayers(TFT_eSprite& s, bool captureEnabledForSurface, bool drawBac
   drawSeahorse(s);
   drawClock(s);
   drawHud(s);
+  drawTomoOverlay(s);
   drawSettingsPanel(s);
   drawEventsPanel(s);
   drawClockStylePanel(s);
@@ -5268,6 +5289,88 @@ bool saveCaptureFrameSlowBmp(bool sequence, bool showToast) {
 
 bool saveSingleCaptureSlowBmp(bool showToast) {
   return saveCaptureFrameSlowBmp(false, showToast);
+}
+
+void updateTomoState(unsigned long now, float dt) {
+  if (!tomoModeEnabled) return;
+  if (now - lastTomoUpdateMs < 1000) return; // Update every second
+  lastTomoUpdateMs = now;
+
+  // Decay fullness (hunger goes up as fullness goes down)
+  tomoHungerFullness = max(0, tomoHungerFullness - 1);
+
+  // Decay health if starving or very messy
+  if (tomoHungerFullness < 20 || tomoMess > 80) {
+    tomoHealth = max(0, tomoHealth - 1);
+  } else if (tomoHungerFullness > 80 && tomoMess < 20) {
+    tomoHealth = min(100, tomoHealth + 1); // Slowly recover if well fed and clean
+  }
+
+  // Accumulate mess slowly
+  if (random(100) < 5) { // 5% chance per second
+    tomoMess = min(100, tomoMess + 2);
+  }
+
+  // Activity decays slowly (placeholder for future)
+  tomoActivity = max(0, tomoActivity - 1);
+  
+  markSettingsDirty();
+}
+
+void drawTomoOverlay(TFT_eSprite& s) {
+  if (!tomoModeEnabled) return;
+
+  // Draw small meters at top
+  int barW = 40;
+  int barH = 6;
+  int startX = 8;
+  int startY = 2;
+  int gap = 4;
+
+  s.setTextSize(1);
+  s.setTextDatum(ML_DATUM);
+
+  // Health meter (Green to Red)
+  s.setTextColor(TFT_WHITE);
+  s.drawString("H", startX, startY + 1);
+  uint16_t healthColor = (tomoHealth > 60) ? TFT_GREEN : ((tomoHealth > 30) ? TFT_YELLOW : TFT_RED);
+  s.fillRect(startX + 12, startY, barW, barH, TFT_DARKGREY);
+  s.fillRect(startX + 12, startY, (barW * tomoHealth) / 100, barH, healthColor);
+  s.drawRect(startX + 12, startY, barW, barH, TFT_WHITE);
+
+  // Hunger/Fullness meter (Red to Green, label is "Food")
+  s.setTextColor(TFT_WHITE);
+  s.drawString("F", startX + barW + gap + 12 + 8, startY + 1);
+  uint16_t foodColor = (tomoHungerFullness > 60) ? TFT_GREEN : ((tomoHungerFullness > 30) ? TFT_YELLOW : TFT_RED);
+  int foodX = startX + barW + gap + 20;
+  s.fillRect(foodX, startY, barW, barH, TFT_DARKGREY);
+  s.fillRect(foodX, startY, (barW * tomoHungerFullness) / 100, barH, foodColor);
+  s.drawRect(foodX, startY, barW, barH, TFT_WHITE);
+
+  // Activity meter (Blue)
+  s.setTextColor(TFT_WHITE);
+  s.drawString("A", foodX + barW + gap + 12 + 8, startY + 1);
+  int actX = foodX + barW + gap + 20;
+  s.fillRect(actX, startY, barW, barH, TFT_DARKGREY);
+  s.fillRect(actX, startY, (barW * tomoActivity) / 100, barH, TFT_CYAN);
+  s.drawRect(actX, startY, barW, barH, TFT_WHITE);
+
+  // Draw mess at the bottom (algae/trash specks)
+  if (tomoMess > 0) {
+    int speckCount = (tomoMess * 15) / 100; // Up to 15 specks
+    randomSeed(tomoMess); // Deterministic for frame consistency based on mess level
+    for (int i = 0; i < speckCount; i++) {
+      int sx = random(0, SCREEN_W);
+      int sy = SCREEN_H - random(2, 20);
+      uint16_t messColor = (random(100) < 50) ? TFT_DARKGREEN : RGB565(80, 60, 40); // Algae or dirt
+      s.drawPixel(sx, sy, messColor);
+      if (random(100) < 30) {
+        s.drawPixel(sx + 1, sy, messColor);
+        s.drawPixel(sx, sy + 1, messColor);
+      }
+    }
+    randomSeed((uint32_t)esp_random()); // Restore true randomness
+  }
 }
 
 void renderFrame() {
@@ -6034,6 +6137,17 @@ void processTouch() {
         eventsPanelOpen = true;
         return;
       }
+
+      if (inside(x, y, SETTINGS_MINUS_X, SETTINGS_ROW_START_Y + SETTINGS_ROW_GAP * 3, SETTINGS_BUTTON_W, SETTINGS_BUTTON_H)) {
+        tomoModeEnabled = false;
+        markSettingsDirty();
+        return;
+      }
+      if (inside(x, y, SETTINGS_PLUS_X, SETTINGS_ROW_START_Y + SETTINGS_ROW_GAP * 3, SETTINGS_BUTTON_W, SETTINGS_BUTTON_H)) {
+        tomoModeEnabled = true;
+        markSettingsDirty();
+        return;
+      }
     } else if (activeSettingsTab == SETTINGS_TAB_SEAWEED) {
       // Seaweed sway -/+
       if (inside(x, y, SETTINGS_MINUS_X, SETTINGS_ROW_START_Y, SETTINGS_BUTTON_W, SETTINGS_BUTTON_H)) {
@@ -6181,6 +6295,22 @@ void processTouch() {
     return;
   }
 
+  // Tomo mode interactions
+  if (tomoModeEnabled) {
+    if (y < SCREEN_H / 2) {
+      // Top half: feed fish + boost health and fullness
+      tomoHungerFullness = min(100, tomoHungerFullness + 15);
+      tomoHealth = min(100, tomoHealth + 5);
+      tomoActivity = min(100, tomoActivity + 10);
+      markSettingsDirty();
+    } else {
+      // Bottom half: clean tank floor
+      tomoMess = max(0, tomoMess - 15);
+      tomoHealth = min(100, tomoHealth + 3); // Cleaning makes fish happier
+      markSettingsDirty();
+    }
+  }
+
   // Feed interaction: tap anywhere else to spawn falling flake
   spawnFlake((float)x, (float)y);
 }
@@ -6303,6 +6433,7 @@ void loop() {
   serviceWifi(now);
   serviceSettingsPersistence(now);
   serviceAutoFeed(aquariumNowMs);
+  updateTomoState(now, dt);
   updateFlakes(dt);
   updateBubbles(dt);
   updateFish(dt);
