@@ -1294,11 +1294,18 @@ unsigned long octopusButtonFlashUntilMs = 0;
 
 // ------------------------------ Tomo Mode ------------------------------------
 bool tomoModeEnabled = false;
-int tomoHealth = 100;        // 0-100, 0 = critical
-int tomoHungerFullness = 100; // 0-100, 100 = full, 0 = starving (UI shows inverted as "Hunger")
-int tomoActivity = 50;       // 0-100 (placeholder for future)
-int tomoMess = 0;            // 0-100 trash/algae on tank floor
+float tomoHealth = 100.0f;        // 0-100
+float tomoHungerFullness = 100.0f; // 0-100, 100 = full, 0 = starving
+float tomoActivity = 50.0f;       // 0-100
+float tomoMess = 0.0f;            // 0-100 trash/algae on tank floor
 unsigned long lastTomoUpdateMs = 0;
+
+// Swipe tracking for activity
+int touchStartX = -1;
+int touchStartY = -1;
+int lastTouchX = -1;
+int lastTouchY = -1;
+unsigned long touchStartTime = 0;
 
 unsigned long lastMs = 0;
 // Animation clock. During sequence capture it advances one video frame per saved BMP,
@@ -2932,10 +2939,10 @@ void savePersistentState() {
   prefs.putString("wifi_pass", wifiPass);
   prefs.putBytes("flowers", pixelFlowers, sizeof(pixelFlowers));
   prefs.putBool("tomo_on", tomoModeEnabled);
-  prefs.putInt("tomo_health", tomoHealth);
-  prefs.putInt("tomo_hunger", tomoHungerFullness);
-  prefs.putInt("tomo_activity", tomoActivity);
-  prefs.putInt("tomo_mess", tomoMess);
+  prefs.putFloat("tomo_health", tomoHealth);
+  prefs.putFloat("tomo_hunger", tomoHungerFullness);
+  prefs.putFloat("tomo_activity", tomoActivity);
+  prefs.putFloat("tomo_mess", tomoMess);
   prefs.end();
   settingsDirty = false;
   lastSettingsSaveMs = millis();
@@ -3012,10 +3019,10 @@ void loadPersistentState() {
       prefs.getBytes("flowers", pixelFlowers, sizeof(pixelFlowers));
     }
     tomoModeEnabled = prefs.getBool("tomo_on", false);
-    tomoHealth = prefs.getInt("tomo_health", 100);
-    tomoHungerFullness = prefs.getInt("tomo_hunger", 100);
-    tomoActivity = prefs.getInt("tomo_activity", 50);
-    tomoMess = prefs.getInt("tomo_mess", 0);
+    tomoHealth = prefs.getFloat("tomo_health", 100.0f);
+    tomoHungerFullness = prefs.getFloat("tomo_hunger", 100.0f);
+    tomoActivity = prefs.getFloat("tomo_activity", 50.0f);
+    tomoMess = prefs.getFloat("tomo_mess", 0.0f);
   }
   prefs.end();
 
@@ -5296,24 +5303,37 @@ void updateTomoState(unsigned long now, float dt) {
   if (now - lastTomoUpdateMs < 1000) return; // Update every second
   lastTomoUpdateMs = now;
 
-  // Decay fullness (hunger goes up as fullness goes down)
-  tomoHungerFullness = max(0, tomoHungerFullness - 1);
+  // 1. Food decay: 100% over 8 hours (28800 seconds)
+  float foodDecayPerSec = 100.0f / 28800.0f; 
+  tomoHungerFullness = max(0.0f, tomoHungerFullness - foodDecayPerSec);
 
-  // Decay health if starving or very messy
-  if (tomoHungerFullness < 20 || tomoMess > 80) {
-    tomoHealth = max(0, tomoHealth - 1);
-  } else if (tomoHungerFullness > 80 && tomoMess < 20) {
-    tomoHealth = min(100, tomoHealth + 1); // Slowly recover if well fed and clean
-  }
-
-  // Accumulate mess slowly
-  if (random(100) < 5) { // 5% chance per second
-    tomoMess = min(100, tomoMess + 2);
-  }
-
-  // Activity decays slowly (placeholder for future)
-  tomoActivity = max(0, tomoActivity - 1);
+  // 2. Health decay: 100% over 12 hours (43200 seconds) under max stress
+  float maxHealthDecayPerSec = 100.0f / 43200.0f;
   
+  // 30% from garbage (based on mess 0-100)
+  float garbageDecay = (tomoMess / 100.0f) * (maxHealthDecayPerSec * 0.30f);
+  
+  // 10% from zero activity (based on activity 0-100, inverted)
+  float activityDecay = ((100.0f - tomoActivity) / 100.0f) * (maxHealthDecayPerSec * 0.10f);
+  
+  // 60% from low food (only if food <= 10%)
+  float foodDecay = (tomoHungerFullness <= 10.0f) ? (maxHealthDecayPerSec * 0.60f) : 0.0f;
+  
+  float totalHealthDecay = garbageDecay + activityDecay + foodDecay;
+  tomoHealth = max(0.0f, tomoHealth - totalHealthDecay);
+
+  // Slow health recovery if conditions are good
+  if (tomoHungerFullness > 80.0f && tomoMess < 20.0f && tomoActivity > 50.0f) {
+    tomoHealth = min(100.0f, tomoHealth + (maxHealthDecayPerSec * 0.5f)); 
+  }
+
+  // 3. Activity decay: slowly drops to 0 (e.g., 10 points per hour)
+  float activityDecayPerSec = 10.0f / 3600.0f;
+  tomoActivity = max(0.0f, tomoActivity - activityDecayPerSec);
+
+  // 4. Mess accumulation: ~12 hours to reach 100 (100 / 43200 per sec)
+  tomoMess = min(100.0f, tomoMess + (100.0f / 43200.0f));
+
   markSettingsDirty();
 }
 
@@ -5882,15 +5902,44 @@ void handleEventsPanelTouch(int x, int y) {
 
 void processTouch() {
   int x, y;
-  if (!readTouchPoint(x, y)) {
+  bool isDown = readTouchPoint(x, y);
+  unsigned long now = millis();
+
+  if (isDown) {
+    lastTouchX = x;
+    lastTouchY = y;
+    if (!touchWasDown) {
+      touchStartX = x;
+      touchStartY = y;
+      touchStartTime = now;
+    }
+  }
+
+  if (!isDown && touchWasDown) {
+    // Swipe ended
+    int dx = lastTouchX - touchStartX;
+    int dy = lastTouchY - touchStartY;
+    float distance = sqrtf((float)(dx * dx + dy * dy));
+    if (distance >= (SCREEN_W * 0.20f)) { // 20% of screen width (~64px)
+      if (tomoModeEnabled) {
+        tomoActivity = min(100.0f, tomoActivity + 20.0f);
+        tomoHealth = min(100.0f, tomoHealth + 3.0f);
+        markSettingsDirty();
+      }
+    }
+    touchWasDown = false;
+    return;
+  }
+
+  if (!isDown) {
     touchWasDown = false;
     return;
   }
 
   if (touchWasDown) return;
   touchWasDown = true;
-  if (millis() - lastTouchMs < TOUCH_DEBOUNCE_MS) return;
-  lastTouchMs = millis();
+  if (now - lastTouchMs < TOUCH_DEBOUNCE_MS) return;
+  lastTouchMs = now;
   if (wakeLightScheduleFromTouch(lastTouchMs)) return;
 
   // Top-left: HUD toggle. Once the HUD is visible, keep this limited to the D
@@ -6302,14 +6351,14 @@ void processTouch() {
   if (tomoModeEnabled) {
     if (y < SCREEN_H / 2) {
       // Top half: feed fish + boost health and fullness
-      tomoHungerFullness = min(100, tomoHungerFullness + 15);
-      tomoHealth = min(100, tomoHealth + 5);
-      tomoActivity = min(100, tomoActivity + 10);
+      tomoHungerFullness = min(100.0f, tomoHungerFullness + 15.0f);
+      tomoHealth = min(100.0f, tomoHealth + 5.0f);
+      tomoActivity = min(100.0f, tomoActivity + 10.0f);
       markSettingsDirty();
     } else {
       // Bottom half: clean tank floor
-      tomoMess = max(0, tomoMess - 15);
-      tomoHealth = min(100, tomoHealth + 3); // Cleaning makes fish happier
+      tomoMess = max(0.0f, tomoMess - 15.0f);
+      tomoHealth = min(100.0f, tomoHealth + 3.0f); // Cleaning makes fish happier
       markSettingsDirty();
     }
   }
