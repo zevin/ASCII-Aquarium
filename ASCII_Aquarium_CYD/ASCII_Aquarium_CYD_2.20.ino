@@ -1310,6 +1310,17 @@ int lastTouchY = -1;
 unsigned long touchStartTime = 0;
 int tomoSwipeCount = 0;
 
+// Visual debris for a dirty tank
+struct TankDebris {
+  bool hasCan;
+  bool hasBoot;
+  int algaeCount; // 0 to 5
+  int algaeX[5];
+  int algaeY[5];
+  char algaeChar[5];
+};
+TankDebris debris = {false, false, 0, {0}, {0}, {'\0'}};
+
 unsigned long lastMs = 0;
 // Animation clock. During sequence capture it advances one video frame per saved BMP,
 // so slow SD writes do not create skipped motion in the exported image sequence.
@@ -3026,6 +3037,7 @@ void loadPersistentState() {
     tomoHungerFullness = prefs.getFloat("tomo_hunger", 100.0f);
     tomoActivity = prefs.getFloat("tomo_activity", 50.0f);
     tomoMess = prefs.getFloat("tomo_mess", 0.0f);
+    syncDebrisToMess(); // Rebuild visual debris from loaded mess level
   }
   prefs.end();
 
@@ -5320,6 +5332,75 @@ bool saveSingleCaptureSlowBmp(bool showToast) {
   return saveCaptureFrameSlowBmp(false, showToast);
 }
 
+void syncDebrisToMess() {
+  bool targetHasCan = (tomoMess > 30.0f);
+  bool targetHasBoot = (tomoMess > 60.0f);
+  int targetAlgae = 0;
+  if (tomoMess > 80.0f) {
+    targetAlgae = min(5, (int)((tomoMess - 80.0f) / 4.0f)); // 80->0, 84->1, ... 100->5
+  }
+
+  if (targetHasCan && !debris.hasCan) debris.hasCan = true;
+  else if (!targetHasCan && debris.hasCan) debris.hasCan = false;
+
+  if (targetHasBoot && !debris.hasBoot) debris.hasBoot = true;
+  else if (!targetHasBoot && debris.hasBoot) debris.hasBoot = false;
+
+  while (debris.algaeCount > targetAlgae) {
+    debris.algaeCount--;
+  }
+  while (debris.algaeCount < targetAlgae) {
+    int idx = debris.algaeCount;
+    debris.algaeX[idx] = random(20, SCREEN_W - 20);
+    debris.algaeY[idx] = random(50, SCREEN_H - 50);
+    const char algaeChars[] = {'#', '@', '&', 'o', '*'};
+    debris.algaeChar[idx] = algaeChars[random(0, 5)];
+    debris.algaeCount++;
+  }
+}
+
+void drawDebris(TFT_eSprite& s) {
+  if (!tomoModeEnabled) return;
+  s.setTextSize(1);
+  s.setTextFont(2); 
+  s.setTextDatum(TL_DATUM);
+
+  if (debris.hasCan) {
+    s.setTextColor(TFT_LIGHTGREY);
+    int canX = 30; 
+    int canY = SCREEN_H - 60;
+    s.drawString("  ___  ", canX, canY);
+    s.drawString(" /   \\ ", canX, canY + 14);
+    s.drawString("(  |  )", canX, canY + 28);
+    s.drawString(" \\___/ ", canX, canY + 42);
+    s.drawString("  | |  ", canX, canY + 56);
+  }
+
+  if (debris.hasBoot) {
+    s.setTextColor(RGB565(139, 69, 19)); // SaddleBrown
+    int bootX = SCREEN_W - 80;
+    int bootY = SCREEN_H - 70;
+    s.drawString("  ___  ", bootX, bootY);
+    s.drawString(" /   | ", bootX, bootY + 14);
+    s.drawString("|  __| ", bootX, bootY + 28);
+    s.drawString("| |    ", bootX, bootY + 42);
+    s.drawString("|_|____", bootX, bootY + 56);
+  }
+}
+
+void drawAlgae(TFT_eSprite& s) {
+  if (!tomoModeEnabled || debris.algaeCount == 0) return;
+  s.setTextSize(1);
+  s.setTextFont(2);
+  s.setTextDatum(TL_DATUM);
+  s.setTextColor(RGB565(0, 100, 0)); // Dark Green
+
+  for (int i = 0; i < debris.algaeCount; i++) {
+    char str[2] = {debris.algaeChar[i], '\0'};
+    s.drawString(str, debris.algaeX[i], debris.algaeY[i]);
+  }
+}
+
 void updateTomoFishPopulation() {
   if (!tomoModeEnabled) return;
   
@@ -5374,6 +5455,7 @@ void updateTomoState(unsigned long now, float dt) {
   // 4. Mess accumulation: ~12 hours to reach 100 (100 / 43200 per sec)
   tomoMess = min(100.0f, tomoMess + (100.0f / 43200.0f));
 
+  syncDebrisToMess(); // Ensure debris matches current mess level
   markSettingsDirty();
 }
 
@@ -6431,6 +6513,7 @@ void processTouch() {
       tomoMess = max(0.0f, tomoMess - 15.0f);
       tomoHealth = min(100.0f, tomoHealth + 3.0f); // Cleaning makes fish happier
       markSettingsDirty();
+      syncDebrisToMess(); // Tactile feedback: debris vanishes as mess level drops
     }
   }
 
