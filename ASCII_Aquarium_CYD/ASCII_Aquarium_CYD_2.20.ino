@@ -594,6 +594,8 @@ struct Fish {
   uint16_t displayColor;
   uint16_t renderColor;
   float depthBrightness;
+  float speedMultiplier;
+  unsigned long speedBoostEndMs;
 };
 
 struct Octopus {
@@ -1306,6 +1308,7 @@ int touchStartY = -1;
 int lastTouchX = -1;
 int lastTouchY = -1;
 unsigned long touchStartTime = 0;
+int tomoSwipeCount = 0;
 
 unsigned long lastMs = 0;
 // Animation clock. During sequence capture it advances one video frame per saved BMP,
@@ -3788,7 +3791,12 @@ void updateFish(float dt) {
     f.vx /= mag;
     f.vy /= mag;
 
-    float fishSpeed = f.speed + sinf(t * 3.2f + f.phase) * 4.0f;
+    float currentSpeedMult = f.speedMultiplier;
+    if (currentSpeedMult > 1.0f && aquariumNowMs >= f.speedBoostEndMs) {
+      currentSpeedMult = 1.0f;
+      f.speedMultiplier = 1.0f;
+    }
+    float fishSpeed = (f.speed * currentSpeedMult) + sinf(t * 3.2f + f.phase) * 4.0f;
     f.x += f.vx * fishSpeed * dt;
     f.y += f.vy * fishSpeed * dt;
     if (fishAvoidanceEnabled()) {
@@ -3876,7 +3884,11 @@ void serviceAutoFeed(unsigned long now) {
 }
 
 void scheduleOctopusSpawn(unsigned long now) {
-  octopus.nextSpawnMs = now + octopusSpawnIntervalMs();
+  float intervalMult = 1.0f;
+  if (tomoModeEnabled && tomoHealth < 50.0f) {
+    intervalMult = 2.0f + ((50.0f - tomoHealth) / 50.0f) * 3.0f; // Up to 5x longer interval when starving/dirty
+  }
+  octopus.nextSpawnMs = now + (unsigned long)(octopusSpawnIntervalMs() * intervalMult);
 }
 
 void spawnOctopus(unsigned long now) {
@@ -3922,7 +3934,11 @@ void updateOctopus(unsigned long now, float dt) {
 }
 
 void scheduleSeahorseSpawn(unsigned long now) {
-  seahorse.nextSpawnMs = now + seahorseSpawnIntervalMs();
+  float intervalMult = 1.0f;
+  if (tomoModeEnabled && tomoHealth < 50.0f) {
+    intervalMult = 2.0f + ((50.0f - tomoHealth) / 50.0f) * 3.0f; // Up to 5x longer interval when starving/dirty
+  }
+  seahorse.nextSpawnMs = now + (unsigned long)(seahorseSpawnIntervalMs() * intervalMult);
 }
 
 void spawnSeahorse(unsigned long now) {
@@ -5107,8 +5123,14 @@ void drawSettingsPanel(TFT_eSprite& s) {
 
   char buf[24];
   if (activeSettingsTab == SETTINGS_TAB_TANK) {
-    snprintf(buf, sizeof(buf), "%d", fishTargetCount);
-    drawSettingRow(s, SETTINGS_ROW_START_Y, "Fish Population", buf);
+    if (tomoModeEnabled) {
+      char lockedBuf[32];
+      snprintf(lockedBuf, sizeof(lockedBuf), "%d (Locked)", fishTargetCount);
+      drawSettingStatusRow(s, SETTINGS_ROW_START_Y, "Fish Population", lockedBuf);
+    } else {
+      snprintf(buf, sizeof(buf), "%d", fishTargetCount);
+      drawSettingRow(s, SETTINGS_ROW_START_Y, "Fish Population", buf);
+    }
 
     snprintf(buf, sizeof(buf), "%d", bubbleTargetCount);
     drawSettingRow(s, SETTINGS_ROW_START_Y + SETTINGS_ROW_GAP, "Bubble Amount", buf);
@@ -5296,6 +5318,24 @@ bool saveCaptureFrameSlowBmp(bool sequence, bool showToast) {
 
 bool saveSingleCaptureSlowBmp(bool showToast) {
   return saveCaptureFrameSlowBmp(false, showToast);
+}
+
+void updateTomoFishPopulation() {
+  if (!tomoModeEnabled) return;
+  
+  // Calculate effective fish count based on Tomo Health
+  // Health 100% = 100% of target, Health 0% = 1 fish minimum
+  float healthFactor = tomoHealth / 100.0f;
+  int effectiveCount = max(1, (int)(fishTargetCount * healthFactor));
+  
+  for (int i = 0; i < MAX_FISH_POOL; i++) {
+    bool shouldBeActive = (i < effectiveCount);
+    if (shouldBeActive && !fishPool[i].active) {
+      activateFish(fishPool[i], true);
+    } else if (!shouldBeActive && fishPool[i].active) {
+      fishPool[i].active = false;
+    }
+  }
 }
 
 void updateTomoState(unsigned long now, float dt) {
@@ -5924,7 +5964,38 @@ void processTouch() {
       if (tomoModeEnabled) {
         tomoActivity = min(100.0f, tomoActivity + 20.0f);
         tomoHealth = min(100.0f, tomoHealth + 3.0f);
+        tomoSwipeCount++;
         markSettingsDirty();
+
+        // 3 swipes = 50% chance for a visitor
+        if (tomoSwipeCount >= 3) {
+          tomoSwipeCount = 0;
+          if (random(100) < 50) {
+            if (random(100) < 50) {
+              spawnOctopusAtCenter(now);
+            } else {
+              spawnSeahorseAtCenter(now);
+            }
+          }
+        }
+
+        // Speed boost for fish within 30px of the swipe bounding box
+        float minX = min(touchStartX, lastTouchX) - 30.0f;
+        float maxX = max(touchStartX, lastTouchX) + 30.0f;
+        float minY = min(touchStartY, lastTouchY) - 30.0f;
+        float maxY = max(touchStartY, lastTouchY) + 30.0f;
+        unsigned long boostEnd = now + 1000UL;
+
+        for (int i = 0; i < MAX_FISH_POOL; i++) {
+          if (fishPool[i].active) {
+            float fx = fishPool[i].x + fishPool[i].visualWidth * 0.5f;
+            float fy = fishPool[i].y + FISH_CENTER_Y_OFFSET;
+            if (fx >= minX && fx <= maxX && fy >= minY && fy <= maxY) {
+              fishPool[i].speedMultiplier = 3.0f;
+              fishPool[i].speedBoostEndMs = boostEnd;
+            }
+          }
+        }
       }
     }
     touchWasDown = false;
@@ -6486,6 +6557,7 @@ void loop() {
   serviceSettingsPersistence(now);
   serviceAutoFeed(aquariumNowMs);
   updateTomoState(now, dt);
+  updateTomoFishPopulation();
   updateFlakes(dt);
   updateBubbles(dt);
   updateFish(dt);
