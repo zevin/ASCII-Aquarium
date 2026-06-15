@@ -5320,40 +5320,43 @@ void updateTomoState(unsigned long now, float dt) {
 void drawTomoOverlay(TFT_eSprite& s) {
   if (!tomoModeEnabled) return;
 
-  // Draw small meters at top
-  int barW = 40;
-  int barH = 6;
-  int startX = 8;
-  int startY = 2;
-  int gap = 4;
+  // Meter dimensions
+  const int barW = 44;
+  const int barH = 6;
+  const int labelW = 12; // Space for the letter
+  const int gap = 4;     // Space between letter and bar
+  
+  // Total width of one meter unit (Label + Gap + Bar)
+  const int unitW = labelW + gap + barW; // 12 + 4 + 44 = 60
+  
+  // We have 3 units. Total width = 60 * 3 = 180
+  // Center on screen (SCREEN_W = 320)
+  int startX = (SCREEN_W - (unitW * 3)) / 2; // (320 - 180) / 2 = 70
+  
+  // Push down ~20 pixels from top
+  int startY = 22; 
 
   s.setTextSize(1);
-  s.setTextDatum(ML_DATUM);
+  s.setTextDatum(ML_DATUM); // Middle Left for text
 
-  // Health meter (Green to Red)
-  s.setTextColor(TFT_WHITE);
-  s.drawString("H", startX, startY + 1);
+  // Helper lambda to draw a single meter consistently
+  auto drawMeter = [&](int x, const char* label, int value, uint16_t color) {
+    s.setTextColor(TFT_WHITE);
+    s.drawString(label, x, startY + 1);
+    
+    int barX = x + labelW;
+    s.fillRect(barX, startY, barW, barH, TFT_DARKGREY);
+    s.fillRect(barX, startY, (barW * value) / 100, barH, color);
+    s.drawRect(barX, startY, barW, barH, TFT_WHITE);
+  };
+
   uint16_t healthColor = (tomoHealth > 60) ? TFT_GREEN : ((tomoHealth > 30) ? TFT_YELLOW : TFT_RED);
-  s.fillRect(startX + 12, startY, barW, barH, TFT_DARKGREY);
-  s.fillRect(startX + 12, startY, (barW * tomoHealth) / 100, barH, healthColor);
-  s.drawRect(startX + 12, startY, barW, barH, TFT_WHITE);
+  drawMeter(startX, "H", tomoHealth, healthColor);
 
-  // Hunger/Fullness meter (Red to Green, label is "Food")
-  s.setTextColor(TFT_WHITE);
-  s.drawString("F", startX + barW + gap + 12 + 8, startY + 1);
   uint16_t foodColor = (tomoHungerFullness > 60) ? TFT_GREEN : ((tomoHungerFullness > 30) ? TFT_YELLOW : TFT_RED);
-  int foodX = startX + barW + gap + 20;
-  s.fillRect(foodX, startY, barW, barH, TFT_DARKGREY);
-  s.fillRect(foodX, startY, (barW * tomoHungerFullness) / 100, barH, foodColor);
-  s.drawRect(foodX, startY, barW, barH, TFT_WHITE);
+  drawMeter(startX + unitW, "F", tomoHungerFullness, foodColor);
 
-  // Activity meter (Blue)
-  s.setTextColor(TFT_WHITE);
-  s.drawString("A", foodX + barW + gap + 12 + 8, startY + 1);
-  int actX = foodX + barW + gap + 20;
-  s.fillRect(actX, startY, barW, barH, TFT_DARKGREY);
-  s.fillRect(actX, startY, (barW * tomoActivity) / 100, barH, TFT_CYAN);
-  s.drawRect(actX, startY, barW, barH, TFT_WHITE);
+  drawMeter(startX + unitW * 2, "A", tomoActivity, TFT_CYAN);
 
   // Draw mess at the bottom (algae/trash specks)
   if (tomoMess > 0) {
