@@ -5361,39 +5361,38 @@ void syncDebrisToMess() {
 
 void drawDebris(TFT_eSprite& s) {
   if (!tomoModeEnabled) return;
-  s.setTextSize(1);
+  
+  s.setTextSize(2);
   s.setTextFont(2); 
   s.setTextDatum(TL_DATUM);
 
   if (debris.hasCan) {
-    s.setTextColor(TFT_LIGHTGREY);
-    int canX = 30; 
-    int canY = SCREEN_H - 60;
-    s.drawString("  ___  ", canX, canY);
-    s.drawString(" /   \\ ", canX, canY + 14);
-    s.drawString("(  |  )", canX, canY + 28);
-    s.drawString(" \\___/ ", canX, canY + 42);
-    s.drawString("  | |  ", canX, canY + 56);
+    s.setTextColor(TFT_WHITE);
+    int canX = 20; 
+    int canY = SCREEN_H - 72;
+    s.drawString(" (___) ", canX, canY);
+    s.drawString("  | |  ", canX, canY + 16);
+    s.drawString("  |_|  ", canX, canY + 32);
   }
 
   if (debris.hasBoot) {
-    s.setTextColor(RGB565(139, 69, 19)); // SaddleBrown
-    int bootX = SCREEN_W - 80;
-    int bootY = SCREEN_H - 70;
+    s.setTextColor(TFT_ORANGE);
+    int bootX = SCREEN_W - 100;
+    int bootY = SCREEN_H - 64;
     s.drawString("  ___  ", bootX, bootY);
-    s.drawString(" /   | ", bootX, bootY + 14);
-    s.drawString("|  __| ", bootX, bootY + 28);
-    s.drawString("| |    ", bootX, bootY + 42);
-    s.drawString("|_|____", bootX, bootY + 56);
+    s.drawString(" /   | ", bootX, bootY + 16);
+    s.drawString("|  __| ", bootX, bootY + 32);
+    s.drawString("|_|    ", bootX, bootY + 48);
   }
 }
 
 void drawAlgae(TFT_eSprite& s) {
   if (!tomoModeEnabled || debris.algaeCount == 0) return;
-  s.setTextSize(1);
+
+  s.setTextSize(2);
   s.setTextFont(2);
   s.setTextDatum(TL_DATUM);
-  s.setTextColor(RGB565(0, 100, 0)); // Dark Green
+  s.setTextColor(TFT_GREENYELLOW);
 
   for (int i = 0; i < debris.algaeCount; i++) {
     char str[2] = {debris.algaeChar[i], '\0'};
@@ -5420,9 +5419,29 @@ void updateTomoFishPopulation() {
 }
 
 void updateTomoState(unsigned long now, float dt) {
-  if (!tomoModeEnabled) return;
+  if (!tomoModeEnabled) {
+    static bool warned = false;
+    if (!warned) {
+      Serial.println("TOMO DEBUG: Tomo Mode is DISABLED. Please enable it in Settings > Tank.");
+      warned = true;
+    }
+    return;
+  }
   if (now - lastTomoUpdateMs < 1000) return; // Update every second
   lastTomoUpdateMs = now;
+
+  // Print debug info every 15 seconds
+  static unsigned long lastDebugPrint = 0;
+  if (now - lastDebugPrint > 15000) {
+    int expectedAlgae = (tomoMess > 80.0f) ? min(5, (int)((tomoMess - 80.0f) / 4.0f)) : 0;
+    Serial.printf("TOMO DEBUG: Enabled=1 | Mess=%.1f (Can:%d, Boot:%d, Algae:%d) | Health=%.1f\n", 
+                  tomoMess, 
+                  (int)(tomoMess > 30.0f), 
+                  (int)(tomoMess > 60.0f), 
+                  expectedAlgae,
+                  tomoHealth);
+    lastDebugPrint = now;
+  }
 
   // 1. Food decay: 100% over 8 hours (28800 seconds)
   float foodDecayPerSec = 100.0f / 28800.0f; 
@@ -5516,6 +5535,10 @@ void drawTomoOverlay(TFT_eSprite& s) {
     }
     randomSeed((uint32_t)esp_random()); // Restore true randomness
   }
+  
+  // Draw visual debris and algae over the tank (dirty glass effect)
+  drawDebris(s);
+  drawAlgae(s);
 }
 
 void renderFrame() {
